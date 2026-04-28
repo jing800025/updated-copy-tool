@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>快速复制工具</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      background-color: #1a1a2e;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 16px 16px;
+    }
+
+    /* 顶部留空区：给微信悬浮输入法停靠，加高到280px */
+    .input-method-zone {
+      width: 100%;
+      max-width: 480px;
+      height: 280px;
+      background: #121220;
+      border-bottom: 2px dashed #3a3a60;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0 0 16px 16px;
+      flex-shrink: 0;
+    }
+
+    .input-method-zone span {
+      color: #3a3a60;
+      font-size: 13px;
+      letter-spacing: 1px;
+    }
+
+    /* 按钮区域 */
+    .action-area {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 14px 0 12px;
+      flex-shrink: 0;
+    }
+
+    .btn-copy {
+      width: 100%;
+      padding: 18px;
+      background: linear-gradient(135deg, #7c4dff, #9c6fff);
+      border: none;
+      border-radius: 16px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: opacity 0.2s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-copy:active {
+      opacity: 0.85;
+      transform: scale(0.98);
+    }
+
+    .btn-clear {
+      width: 100%;
+      padding: 13px;
+      background: #2a2a45;
+      border: none;
+      border-radius: 16px;
+      color: #aaaacc;
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-clear:active {
+      background: #333355;
+    }
+
+    /* 输入框区域：flex-grow 撑满剩余空间 */
+    .input-area {
+      width: 100%;
+      max-width: 480px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    textarea {
+      width: 100%;
+      flex: 1;
+      min-height: 0;
+      background: #252540;
+      border: 1.5px solid #3a3a60;
+      border-radius: 16px;
+      color: #ffffff;
+      font-size: 16px;
+      line-height: 1.6;
+      padding: 16px;
+      resize: none;
+      outline: none;
+      transition: border-color 0.2s;
+      font-family: inherit;
+    }
+
+    textarea:focus {
+      border-color: #7c4dff;
+    }
+
+    textarea::placeholder {
+      color: #55557a;
+    }
+
+    .char-count {
+      text-align: right;
+      font-size: 12px;
+      color: #55557a;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+
+    /* 复制成功提示 */
+    .toast {
+      position: fixed;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #7c4dff;
+      color: #fff;
+      padding: 10px 24px;
+      border-radius: 24px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 顶部留空区：给微信悬浮输入法停靠 -->
+  <div class="input-method-zone">
+    <span>微信悬浮输入法区域</span>
+  </div>
+
+  <!-- 按钮紧跟在留空区下方 -->
+  <div class="action-area">
+    <button class="btn-copy" onclick="copyText()">📋 复制到剪贴板</button>
+    <button class="btn-clear" onclick="clearText()">🗑 清空</button>
+  </div>
+
+  <!-- 输入框撑满剩余屏幕 -->
+  <div class="input-area">
+    <textarea
+      id="inputText"
+      placeholder="语音转文字结果显示在这里..."
+      oninput="updateCount()"
+    ></textarea>
+    <div class="char-count"><span id="charCount">0</span> 字</div>
+  </div>
+
+  <div class="toast" id="toast">✅ 已复制到剪贴板</div>
+
+  <script>
+    function updateCount() {
+      const text = document.getElementById('inputText').value;
+      document.getElementById('charCount').textContent = text.length;
+    }
+
+    function copyText() {
+      const text = document.getElementById('inputText').value;
+      if (!text.trim()) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(showToast);
+      } else {
+        const el = document.getElementById('inputText');
+        el.select();
+        document.execCommand('copy');
+        showToast();
+      }
+    }
+
+    function clearText() {
+      document.getElementById('inputText').value = '';
+      document.getElementById('charCount').textContent = '0';
+    }
+
+    function showToast() {
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+  </script>
+
+</body>
+</html>
