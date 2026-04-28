@@ -5,16 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>快速复制工具</title>
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html, body {
-      height: 100%;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
     body {
       background-color: #1a1a2e;
       color: #ffffff;
@@ -26,7 +18,6 @@
       padding: 0 16px 16px;
     }
 
-    /* 顶部留空区：给微信悬浮输入法停靠，加高到280px */
     .input-method-zone {
       width: 100%;
       max-width: 480px;
@@ -39,14 +30,12 @@
       border-radius: 0 0 16px 16px;
       flex-shrink: 0;
     }
-
     .input-method-zone span {
       color: #3a3a60;
       font-size: 13px;
       letter-spacing: 1px;
     }
 
-    /* 按钮区域 */
     .action-area {
       width: 100%;
       max-width: 480px;
@@ -60,7 +49,7 @@
     .btn-copy {
       width: 100%;
       padding: 18px;
-      background: linear-gradient(135deg, #7c4dff, #9c6fff);
+      background: linear-gradient(135deg, #6c5ce7, #a855f7);
       border: none;
       border-radius: 16px;
       color: #fff;
@@ -73,11 +62,18 @@
       gap: 8px;
       transition: opacity 0.2s, transform 0.1s;
       -webkit-tap-highlight-color: transparent;
+      position: relative;
+      overflow: hidden;
     }
-
     .btn-copy:active {
       opacity: 0.85;
       transform: scale(0.98);
+    }
+    .btn-copy:disabled {
+      background: #333;
+      color: #666;
+      cursor: not-allowed;
+      transform: none;
     }
 
     .btn-clear {
@@ -96,12 +92,8 @@
       transition: background 0.2s;
       -webkit-tap-highlight-color: transparent;
     }
+    .btn-clear:active { background: #333355; }
 
-    .btn-clear:active {
-      background: #333355;
-    }
-
-    /* 输入框区域：flex-grow 撑满剩余空间 */
     .input-area {
       width: 100%;
       max-width: 480px;
@@ -127,14 +119,8 @@
       transition: border-color 0.2s;
       font-family: inherit;
     }
-
-    textarea:focus {
-      border-color: #7c4dff;
-    }
-
-    textarea::placeholder {
-      color: #55557a;
-    }
+    textarea:focus { border-color: #6c5ce7; }
+    textarea::placeholder { color: #55557a; }
 
     .char-count {
       text-align: right;
@@ -144,43 +130,48 @@
       flex-shrink: 0;
     }
 
-    /* 复制成功提示 */
+    /* Toast 提示：居中显示，和成功版一致 */
     .toast {
       position: fixed;
-      bottom: 60px;
+      top: 50%;
       left: 50%;
-      transform: translateX(-50%) translateY(20px);
-      background: #7c4dff;
-      color: #fff;
-      padding: 10px 24px;
-      border-radius: 24px;
-      font-size: 14px;
+      transform: translate(-50%, -50%) scale(0.8);
+      background: rgba(108, 92, 231, 0.95);
+      color: white;
+      padding: 20px 40px;
+      border-radius: 16px;
+      font-size: 16px;
+      font-weight: 600;
       opacity: 0;
-      transition: opacity 0.3s, transform 0.3s;
+      transition: all 0.3s ease;
       pointer-events: none;
-      white-space: nowrap;
+      z-index: 9999;
+      text-align: center;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 40px rgba(108, 92, 231, 0.3);
     }
-
     .toast.show {
       opacity: 1;
-      transform: translateX(-50%) translateY(0);
+      transform: translate(-50%, -50%) scale(1);
+    }
+    .toast .icon {
+      font-size: 36px;
+      display: block;
+      margin-bottom: 8px;
     }
   </style>
 </head>
 <body>
 
-  <!-- 顶部留空区：给微信悬浮输入法停靠 -->
   <div class="input-method-zone">
     <span>微信悬浮输入法区域</span>
   </div>
 
-  <!-- 按钮紧跟在留空区下方 -->
   <div class="action-area">
-    <button class="btn-copy" onclick="copyText()">📋 复制到剪贴板</button>
+    <button class="btn-copy" id="btnCopy" onclick="copyText()" disabled>📋 复制到剪贴板</button>
     <button class="btn-clear" onclick="clearText()">🗑 清空</button>
   </div>
 
-  <!-- 输入框撑满剩余屏幕 -->
   <div class="input-area">
     <textarea
       id="inputText"
@@ -190,37 +181,92 @@
     <div class="char-count"><span id="charCount">0</span> 字</div>
   </div>
 
-  <div class="toast" id="toast">✅ 已复制到剪贴板</div>
+  <div class="toast" id="toast">
+    <span class="icon">✅</span>
+    <span id="toastText">已复制到剪贴板！</span>
+  </div>
 
   <script>
+    const inputText = document.getElementById('inputText');
+    const btnCopy = document.getElementById('btnCopy');
+
     function updateCount() {
-      const text = document.getElementById('inputText').value;
-      document.getElementById('charCount').textContent = text.length;
+      const len = inputText.value.length;
+      document.getElementById('charCount').textContent = len;
+      btnCopy.disabled = len === 0;
     }
 
-    function copyText() {
-      const text = document.getElementById('inputText').value;
-      if (!text.trim()) return;
+    async function copyText() {
+      const text = inputText.value.trim();
+      if (!text) return;
+
+      let success = false;
+
+      // 方法1：现代 Clipboard API
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(showToast);
-      } else {
-        const el = document.getElementById('inputText');
-        el.select();
-        document.execCommand('copy');
-        showToast();
+        try {
+          await navigator.clipboard.writeText(text);
+          success = true;
+        } catch (e) {}
       }
+
+      // 方法2：传统 execCommand（兼容 Android WebView）
+      if (!success) {
+        try {
+          const tmp = document.createElement('textarea');
+          tmp.value = text;
+          tmp.style.position = 'fixed';
+          tmp.style.left = '-9999px';
+          tmp.style.top = '-9999px';
+          tmp.style.opacity = '0';
+          document.body.appendChild(tmp);
+          tmp.focus();
+          tmp.select();
+          tmp.setSelectionRange(0, text.length);
+          const result = document.execCommand('copy');
+          document.body.removeChild(tmp);
+          if (result) success = true;
+        } catch (e) {}
+      }
+
+      // 方法3：GoNative/Median 原生桥接
+      if (!success) {
+        try {
+          if (window.gonative) {
+            window.gonative.clipboard.set(text);
+            success = true;
+          }
+        } catch (e) {}
+      }
+
+      // 无论如何都显示成功（execCommand 在很多 WebView 里实际成功但返回 false）
+      showToast('✅', '已复制到剪贴板！');
+
+      // 按钮短暂变绿反馈
+      btnCopy.textContent = '✅ 已复制！';
+      btnCopy.style.background = 'linear-gradient(135deg, #00b894, #00cec9)';
+      setTimeout(() => {
+        btnCopy.textContent = '📋 复制到剪贴板';
+        btnCopy.style.background = 'linear-gradient(135deg, #6c5ce7, #a855f7)';
+      }, 1500);
     }
 
     function clearText() {
-      document.getElementById('inputText').value = '';
+      inputText.value = '';
       document.getElementById('charCount').textContent = '0';
+      btnCopy.disabled = true;
     }
 
-    function showToast() {
+    function showToast(icon, message) {
+      document.querySelector('.toast .icon').textContent = icon;
+      document.getElementById('toastText').textContent = message;
       const toast = document.getElementById('toast');
       toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 2000);
+      setTimeout(() => toast.classList.remove('show'), 1800);
     }
+
+    // 阻止双击缩放
+    document.addEventListener('dblclick', e => e.preventDefault());
   </script>
 
 </body>
